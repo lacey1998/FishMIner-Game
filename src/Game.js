@@ -2,7 +2,7 @@ import React, { useEffect, useCallback } from 'react';
 import GameBoard from './GameBoard';
 import ScoreBoard from './ScoreBoard';
 import Timer from './Timer';
-import useGameState from '../hooks/useGameState';
+import useGameState from './useGameState';
 
 const GAME_DURATION = 60; // 60 seconds
 const TARGET_SCORE = 500;
