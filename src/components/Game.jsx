@@ -42,7 +42,6 @@ const Game = () => {
     setShowHighScores(false);
     setGameOver(false);
     setPlayerName('');
-    startGame();
   };
 
   // End game when time runs out

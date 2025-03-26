@@ -60,7 +60,6 @@ const ScoreManager = () => {
 
   return (
     <div className="score-manager">
-      <h2>Score Management</h2>
       <div className="scores-list">
         {scores.map(score => (
           <div key={score.id} className="score-item">
