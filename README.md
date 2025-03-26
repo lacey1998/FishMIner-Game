@@ -75,3 +75,7 @@ firebase deploy
 - **Play Again** functionality
 - **High Score Saving** using **Firebase Firestore**
 
+## Youtube Videos
+- Demo Video: https://youtu.be/hfin4tHRCkk
+- Functional Programming Demonstration: https://youtu.be/GmwjP2N0ZGc
+
