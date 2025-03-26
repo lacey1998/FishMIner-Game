@@ -296,157 +296,160 @@ This uses the functional `find` method to locate the first game object that meet
 
 ## 3. Design Patterns
 
-### 1. Module Pattern in Our Firestore Service
+### Factory Method Pattern
 
-Our `firestoreService.js` is a perfect example of the Module pattern. Take a look:
-
-```javascript
-// In firestoreService.js
-import { 
-  collection, 
-  addDoc, 
-  getDocs, 
-  // other imports...
-} from 'firebase/firestore';
-import { db } from '../config/firebase';
-
-const COLLECTION_NAME = 'scores'; // Private constant
-
-// Public functions
-export const saveScore = async (scoreData) => {
-  try {
-    const docRef = await addDoc(collection(db, COLLECTION_NAME), {
-      ...scoreData,
-      timestamp: new Date().toISOString()
-    });
-    return docRef.id;
-  } catch (error) {
-    console.error('Error saving score:', error);
-    throw error;
-  }
-};
-
-export const getHighScores = async (limitCount = 10) => {
-  // Implementation...
-};
-```
-
-I implemented this module pattern to keep all our Firestore operations in one place. The beauty of this approach is that I can change how we store data without touching any game components. Also, notice how I kept the collection name as a private constant, but exposed only the functions that need to be public. 
-
-This makes our code more maintainable because:
-1. When we had to add high score functionality, I just added new functions in this module
-2. If we need to switch to a different database in the future, we'd only need to change this file
-3. The rest of the app only knows about these functions, not the implementation details
-
-### 2. Custom Hook as a Composition Tool
-
-My favorite pattern in this project is the custom hook implementation. It's really a form of the Composition pattern:
+The way we create game objects follows the Factory Method pattern:
 
 ```javascript
-// In useGameState.jsx
-const useGameState = (gameDuration) => {
-  // State definitions
-  const [score, setScore] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(gameDuration);
-  const [gameObjects, setGameObjects] = useState([]);
-  // More state...
-  
-  // Game logic functions
-  const startGame = useCallback(() => {
-    setScore(0);
-    setTimeLeft(gameDuration);
-    setIsGameActive(true);
-    // More reset logic...
-  }, [gameDuration]);
-  
-  const dropHook = useCallback(() => {
-    // Hook dropping logic...
-  }, [isGameActive, gameObjects, hookPosition, updateScore, catchAnimation]);
-  
-  // Timer effect
-  useEffect(() => {
-    if (isGameActive && timeLeft > 0) {
-      const timer = setInterval(() => {
-        setTimeLeft((prev) => prev - 1);
-      }, 1000);
-      return () => clearInterval(timer);
-    } else if (timeLeft === 0) {
-      endGame();
-    }
-  }, [isGameActive, timeLeft, endGame]);
-  
-  // Return everything the component needs
+// In useGameState.jsx - createGameObject function
+const createGameObject = (type) => {
+  const x = Math.floor(Math.random() * (GAME_WIDTH - 50));
+  const points = type === 'fish' 
+    ? Math.floor(Math.random() * 30) + 20
+    : type === 'garbage' 
+      ? -30 
+      : Math.floor(Math.random() * 100) - 50; // Mystery box
+
   return {
-    score, timeLeft, isGameActive, gameObjects,
-    hookPosition, catchAnimation, lastCaughtItem,
-    startGame, dropHook, updateScore, endGame
+    id: Date.now() + Math.random().toString(),
+    type,
+    position: { x, y: 0 },
+    points
   };
 };
 ```
 
-When I was building this game, I realized the game state logic was getting complex, so I pulled it out into this custom hook. It's been a game-changer (pun intended!) for a few reasons:
+This Factory Method pattern allows us to:
+1. Create different types of game objects (fish, garbage, mystery boxes)
+2. Encapsulate the object creation logic in one place
+3. Easily extend the game with new object types without changing the game logic
 
-- When I needed to add features (like the mystery items), I only had to modify the hook, not the components
-- The Game component became much cleaner and focused on presentation
-- Testing became easier because I could test the game logic separately from the UI
+### Observer Pattern
 
-It's not exactly a Factory since it doesn't create different types of objects, but more like a Composition tool that composes different game behaviors together.
-
-### 3. Container/Presentational Split
-
-One pattern that really helped organize the code is the Container/Presentational split:
+Our game uses the Observer pattern through React's state and effect hooks:
 
 ```javascript
-// Container component (Game.jsx)
-const Game = () => {
-  // All the game state and logic from our hook
-  const {
-    score, timeLeft, isGameActive, gameObjects,
-    hookPosition, catchAnimation, lastCaughtItem,
-    startGame, dropHook
-  } = useGameState(GAME_DURATION);
-  
-  // More container logic...
-  
-  return (
-    <div className="game-container">
-      <ScoreBoard score={score} targetScore={TARGET_SCORE} />
+// In useGameState.jsx
+// Timer effect observes game state changes
+useEffect(() => {
+  if (isGameActive && timeLeft > 0) {
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  } else if (timeLeft === 0) {
+    endGame();
+  }
+}, [isGameActive, timeLeft, endGame]);
+
+// Objects movement effect observes game state
+useEffect(() => {
+  if (isGameActive) {
+    const interval = setInterval(() => {
+      setGameObjects((prev) => 
+        prev
+          .map((obj) => ({
+            ...obj,
+            position: { ...obj.position, y: obj.position.y + 5 },
+          }))
+          .filter(obj => obj.position.y < 480)
+      );
+    }, 50);
+
+    return () => clearInterval(interval);
+  }
+}, [isGameActive]);
+```
+
+This Observer pattern implementation:
+1. Allows components to react to state changes without tight coupling
+2. Keeps the UI in sync with the game state automatically
+3. Separates the notification logic from the business logic
+
+### State Pattern
+
+The game's different states (active, paused, game over) are managed using the State pattern:
+
+```javascript
+// In useGameState.jsx
+const [isGameActive, setIsGameActive] = useState(false);
+const [isGameOver, setIsGameOver] = useState(false);
+
+// Functions that change the game state
+const startGame = useCallback(() => {
+  setScore(0);
+  setTimeLeft(gameDuration);
+  setIsGameActive(true);
+  setIsGameOver(false);
+  setGameObjects([]);
+  setLastCaughtItem(null);
+  setCatchAnimation(false);
+}, [gameDuration]);
+
+const endGame = useCallback(() => {
+  setIsGameActive(false);
+  setIsGameOver(true);
+}, []);
+
+// Component behavior changes based on state
+return (
+  <div className="game-container">
+    {!isGameActive && !isGameOver && (
+      <button className="start-button" onClick={startGame}>
+        Start Game
+      </button>
+    )}
+    
+    {isGameActive && (
       <GameBoard
         gameObjects={gameObjects}
         hookPosition={hookPosition}
         catchAnimation={catchAnimation}
-        lastCaughtItem={lastCaughtItem}
         dropHook={dropHook}
       />
-      {/* UI rendering logic */}
-    </div>
-  );
-};
-
-// Presentational component (GameObject.jsx)
-const GameObject = ({ type, position, points }) => {
-  // Simple, focused on rendering only
-  return (
-    <div className={`game-object ${type}`} style={{
-      position: 'absolute',
-      left: `${position.x}px`,
-      top: `${position.y}px`
-      // More styling...
-    }}>
-      {type === 'fish' ? '🐟' : type === 'garbage' ? '🗑️' : '📦'}
-    </div>
-  );
-};
+    )}
+    
+    {isGameOver && (
+      <div className="game-over">
+        <h2>Game Over!</h2>
+        <p>Final Score: {score}</p>
+        <button onClick={startGame}>Play Again</button>
+      </div>
+    )}
+  </div>
+);
 ```
 
-This separation has been super helpful during development. I had to rewrite parts of the game UI a couple of times, but because the logic was separate from the presentation, it didn't break anything. 
+The State pattern provides:
+1. Clear separation between different game states
+2. Consistent behavior within each state
+3. Controlled transitions between states
 
-The GameObject component is dead simple - it just takes props and renders them. It doesn't know or care about game rules or state management. Meanwhile, the Game component handles all the wiring and logic. 
+### Singleton Pattern
 
-This made it easier to:
-- Change the visuals without breaking game mechanics
-- Debug issues (UI bugs vs. logic bugs were clearly separated)
-- Add the high scores feature without having to touch any game mechanics
+Our Firebase configuration uses the Singleton pattern to ensure only one connection to Firebase exists:
+
+```javascript
+// In config/firebase.js
+import { initializeApp } from 'firebase/app';
+import { getFirestore } from 'firebase/firestore';
+
+const firebaseConfig = {
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
+  // other config properties
+};
+
+// Initialize Firebase once
+const app = initializeApp(firebaseConfig);
+export const db = getFirestore(app);
+```
+
+This Singleton implementation:
+1. Provides a global point of access to the Firebase instance
+2. Ensures we only create one connection to Firebase
+3. Controls instantiation of the Firebase app
 
 ## 4. Why These Are Good Applications of Functional Programming
 
