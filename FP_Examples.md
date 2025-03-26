@@ -296,7 +296,9 @@ This uses the functional `find` method to locate the first game object that meet
 
 ## 3. Design Patterns
 
-### 1. Module Pattern
+### 1. Module Pattern in Our Firestore Service
+
+Our `firestoreService.js` is a perfect example of the Module pattern. Take a look:
 
 ```javascript
 // In firestoreService.js
@@ -304,93 +306,111 @@ import {
   collection, 
   addDoc, 
   getDocs, 
-  doc, 
-  // ... more imports
+  // other imports...
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
-const COLLECTION_NAME = 'scores';
+const COLLECTION_NAME = 'scores'; // Private constant
 
-// Public API through exports
+// Public functions
 export const saveScore = async (scoreData) => {
-  // Implementation details
+  try {
+    const docRef = await addDoc(collection(db, COLLECTION_NAME), {
+      ...scoreData,
+      timestamp: new Date().toISOString()
+    });
+    return docRef.id;
+  } catch (error) {
+    console.error('Error saving score:', error);
+    throw error;
+  }
 };
 
 export const getHighScores = async (limitCount = 10) => {
-  // Implementation details
+  // Implementation...
 };
-
-// ... more exported functions
 ```
 
-The firestoreService.js implements the Module pattern by:
-- Encapsulating related functionality in a single module
-- Hiding implementation details and exposing only the public API through exports
-- Maintaining private state (like COLLECTION_NAME) within the module scope
+I implemented this module pattern to keep all our Firestore operations in one place. The beauty of this approach is that I can change how we store data without touching any game components. Also, notice how I kept the collection name as a private constant, but exposed only the functions that need to be public. 
 
-### 2. Custom Hook Pattern (variation of Factory pattern)
+This makes our code more maintainable because:
+1. When we had to add high score functionality, I just added new functions in this module
+2. If we need to switch to a different database in the future, we'd only need to change this file
+3. The rest of the app only knows about these functions, not the implementation details
+
+### 2. Custom Hook as a Composition Tool
+
+My favorite pattern in this project is the custom hook implementation. It's really a form of the Composition pattern:
 
 ```javascript
 // In useGameState.jsx
 const useGameState = (gameDuration) => {
+  // State definitions
   const [score, setScore] = useState(0);
   const [timeLeft, setTimeLeft] = useState(gameDuration);
-  // More state variables
+  const [gameObjects, setGameObjects] = useState([]);
+  // More state...
   
-  // Various methods and effects
+  // Game logic functions
+  const startGame = useCallback(() => {
+    setScore(0);
+    setTimeLeft(gameDuration);
+    setIsGameActive(true);
+    // More reset logic...
+  }, [gameDuration]);
   
-  // Return an object with all the state and methods
+  const dropHook = useCallback(() => {
+    // Hook dropping logic...
+  }, [isGameActive, gameObjects, hookPosition, updateScore, catchAnimation]);
+  
+  // Timer effect
+  useEffect(() => {
+    if (isGameActive && timeLeft > 0) {
+      const timer = setInterval(() => {
+        setTimeLeft((prev) => prev - 1);
+      }, 1000);
+      return () => clearInterval(timer);
+    } else if (timeLeft === 0) {
+      endGame();
+    }
+  }, [isGameActive, timeLeft, endGame]);
+  
+  // Return everything the component needs
   return {
-    score,
-    timeLeft,
-    isGameActive,
-    gameObjects,
-    hookPosition,
-    hookDirection,
-    catchAnimation,
-    lastCaughtItem,
-    startGame,
-    dropHook,
-    updateScore,
-    endGame
+    score, timeLeft, isGameActive, gameObjects,
+    hookPosition, catchAnimation, lastCaughtItem,
+    startGame, dropHook, updateScore, endGame
   };
 };
 ```
 
-The useGameState custom hook implements a variation of the Factory pattern by:
-- Creating and returning an object with state and behavior
-- Encapsulating related state and logic
-- Allowing reuse of this functionality across components
+When I was building this game, I realized the game state logic was getting complex, so I pulled it out into this custom hook. It's been a game-changer (pun intended!) for a few reasons:
 
-### 3. Container/Presentational Pattern
+- When I needed to add features (like the mystery items), I only had to modify the hook, not the components
+- The Game component became much cleaner and focused on presentation
+- Testing became easier because I could test the game logic separately from the UI
+
+It's not exactly a Factory since it doesn't create different types of objects, but more like a Composition tool that composes different game behaviors together.
+
+### 3. Container/Presentational Split
+
+One pattern that really helped organize the code is the Container/Presentational split:
 
 ```javascript
-// Container component in Game.jsx
+// Container component (Game.jsx)
 const Game = () => {
-  // State and logic
+  // All the game state and logic from our hook
   const {
-    score,
-    timeLeft,
-    isGameActive,
-    gameObjects,
-    hookPosition,
-    catchAnimation,
-    lastCaughtItem,
-    startGame,
-    dropHook,
-    updateScore,
-    endGame
+    score, timeLeft, isGameActive, gameObjects,
+    hookPosition, catchAnimation, lastCaughtItem,
+    startGame, dropHook
   } = useGameState(GAME_DURATION);
   
-  // More logic and handlers
+  // More container logic...
   
   return (
-    // JSX with presentational components
     <div className="game-container">
-      <div className="game-info">
-        <ScoreBoard score={score} targetScore={TARGET_SCORE} />
-        <Timer timeLeft={timeLeft} />
-      </div>
+      <ScoreBoard score={score} targetScore={TARGET_SCORE} />
       <GameBoard
         gameObjects={gameObjects}
         hookPosition={hookPosition}
@@ -398,38 +418,35 @@ const Game = () => {
         lastCaughtItem={lastCaughtItem}
         dropHook={dropHook}
       />
-      {/* ... */}
+      {/* UI rendering logic */}
     </div>
   );
 };
 
-// Presentational component in GameObject.jsx
+// Presentational component (GameObject.jsx)
 const GameObject = ({ type, position, points }) => {
-  const getEmoji = () => {
-    // Implementation
-  };
-  
+  // Simple, focused on rendering only
   return (
-    <div
-      className={`game-object ${type}`}
-      style={{
-        position: 'absolute',
-        left: `${position.x}px`,
-        top: `${position.y}px`,
-        fontSize: '24px',
-        transition: 'top 0.05s linear'
-      }}
-    >
-      {getEmoji()}
+    <div className={`game-object ${type}`} style={{
+      position: 'absolute',
+      left: `${position.x}px`,
+      top: `${position.y}px`
+      // More styling...
+    }}>
+      {type === 'fish' ? '🐟' : type === 'garbage' ? '🗑️' : '📦'}
     </div>
   );
 };
 ```
 
-This implements the Container/Presentational pattern by:
-- Separating logic and state management (in Game.jsx) from presentation (in GameObject.jsx)
-- Passing data down as props to presentational components
-- Keeping presentational components pure and focused on rendering
+This separation has been super helpful during development. I had to rewrite parts of the game UI a couple of times, but because the logic was separate from the presentation, it didn't break anything. 
+
+The GameObject component is dead simple - it just takes props and renders them. It doesn't know or care about game rules or state management. Meanwhile, the Game component handles all the wiring and logic. 
+
+This made it easier to:
+- Change the visuals without breaking game mechanics
+- Debug issues (UI bugs vs. logic bugs were clearly separated)
+- Add the high scores feature without having to touch any game mechanics
 
 ## 4. Why These Are Good Applications of Functional Programming
 
