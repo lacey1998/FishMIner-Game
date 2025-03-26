@@ -121,3 +121,78 @@
   right: 0;
   background: rgba(0, 120, 255, 0.2);
 }
+
+.high-scores {
+  margin: 20px;
+  padding: 20px;
+  background: #f5f5f5;
+  border-radius: 8px;
+}
+
+.scores-list {
+  margin-top: 10px;
+}
+
+.score-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px;
+  margin: 5px 0;
+  background: white;
+  border-radius: 4px;
+}
+
+.game-over {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(255, 255, 255, 0.95);
+  padding: 20px;
+  border-radius: 10px;
+  text-align: center;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+  min-width: 300px;
+}
+
+.game-over h2 {
+  color: #333;
+  margin-bottom: 15px;
+}
+
+.game-over .name-input {
+  padding: 8px 12px;
+  margin: 10px 0;
+  width: 80%;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 16px;
+}
+
+.game-over button {
+  margin: 10px;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background-color 0.3s;
+}
+
+.save-score-button {
+  background-color: #4CAF50;
+  color: white;
+}
+
+.save-score-button:hover {
+  background-color: #45a049;
+}
+
+.play-again-button {
+  background-color: #2196F3;
+  color: white;
+}
+
+.play-again-button:hover {
+  background-color: #1976D2;
+}
